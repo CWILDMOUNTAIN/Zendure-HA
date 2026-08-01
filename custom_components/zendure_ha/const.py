@@ -73,3 +73,5 @@ class SmartMode:
     POWER_TOLERANCE = 5  # Device-level power tolerance (W) before updating
     POWER_IDLE = 10  # Minimal hold power (W) during the direction switch timeout; must exceed POWER_TOLERANCE so the stop command is not skipped
     HOLD_TIMEOUT = 300  # Seconds after a direction flip during which another flip is considered likely
+    
+    MODE_REASSERT_INTERVAL = timedelta(seconds=30)  # Min interval between forced smartMode/acMode re-assertions on unchanged direction
