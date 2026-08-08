@@ -630,8 +630,18 @@ class ZendureManager(DataUpdateCoordinator[None], EntityDevice):
         # excluded from the capacities below and added back to the absolute command.
         # A device in bypass ignores an outputLimit above its pass-through, so it offers
         # nothing dispatchable at all and another device has to cover the demand.
+        
+        def capacity(d: ZendureDevice) -> int:
+            return max(0, d.pwr_max - d.pwr_bypass)
+
+        no_alternative = (
+            setpoint > 0
+            and sum(capacity(d) for d in self.discharge if d.byPass.asInt == 0) == 0
+            and not any(d.state != DeviceState.SOCEMPTY for d in self.idle)
+        )
+        
         def dispatchable(d: ZendureDevice) -> int:
-            return 0 if d.byPass.asInt > 0 else max(0, d.pwr_max - d.pwr_bypass)
+            return capacity(d) if no_alternative or d.byPass.asInt == 0 else 0
 
         dispatch_limit = sum(dispatchable(d) for d in self.discharge)
         dispatch_produced = max(0, self.discharge_produced - self.discharge_bypass)
@@ -670,8 +680,11 @@ class ZendureManager(DataUpdateCoordinator[None], EntityDevice):
                 pwr = max(setpoint - limit, 0 if d.state != DeviceState.SOCFULL else solar)
             pwr = min(pwr, setpoint, headroom)
 
-            # make sure we have devices in optimal working range
-            if len(self.discharge) > 1 and i == 0 and d.state != DeviceState.SOCFULL:
+            # make sure we have devices in optimal working range; only park the lowest-SOC
+            # device when the other devices can actually absorb the setpoint. Bypassing peers
+            # contribute nothing dispatchable, so zeroing here would leave the demand uncovered
+            # and the device is restarted from idle on the next cycle - an endless start/stop cycle.
+            if i == 0 and d.state != DeviceState.SOCFULL and dispatch_limit - headroom >= setpoint:
                 self.pwr_low = 0 if (delta := d.discharge_start * 1.5 - pwr) <= 0 else self.pwr_low + int(delta)
                 pwr = 0 if self.pwr_low > d.discharge_optimal else pwr
 
