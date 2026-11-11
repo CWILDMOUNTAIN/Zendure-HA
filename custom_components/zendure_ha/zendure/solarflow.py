@@ -22,6 +22,7 @@ from ..number import HaNumber
 from ..select import HaSelect
 from ..sensor import HaSensor
 from ..switch import HaSwitch
+from ..button import HaButton
 from .battery import ZendureBattery
 from .device import Command, ConnectionType, ZendureDevice, centi_convert, temp_convert
 
@@ -154,6 +155,8 @@ class ZendureSolarFlow(ZendureDevice, DistributionDevice):
         self.kwhsensor = HaSensor(self, "kwh", uom="kWh", device_class="energy")
         HaSensor(self, "rte", uom="%", state_class="measurement", precision=1)
 
+        HaButton(self, "local_mqtt_reset", press=self.async_reset_local_mqtt)
+
     def mqtt_publish(self, topic: str, command: dict) -> None:
         """Send a JSON command to the device via MQTT."""
         if not self.mqtt or not self.device_key:
@@ -197,7 +200,7 @@ class ZendureSolarFlow(ZendureDevice, DistributionDevice):
 
         # hard stop for normal discharge: below 3.1 V, but allow solar bypass
         if self.low_voltage_discharge_protect and watts > 0 and not getattr(self, "_solar_bypass_mode", False):
-            if self.power_actual > 0:
+            if self.power_actual > 0 or self.power_setpoint > 0:
                 self.power_setpoint = 0
                 self.setpoint.update_value(0)
                 if self.connection in [ConnectionType.CLOUD, ConnectionType.LOCAL]:
