@@ -149,6 +149,51 @@ class ZendureDevice:
             _LOGGER.debug("BLE command failed for %s", self.device_id)
             return False
 
+    async def async_reset_local_mqtt(self, _button: Any = None) -> None:
+        """Set the device to the locally configured MQTT broker over BLE."""
+        from homeassistant.components import persistent_notification
+
+        if self.driver is None or not self.driver.mqtt_host:
+            persistent_notification.async_create(
+                self.hass, "Kein lokaler MQTT-Broker konfiguriert.", self.model
+            )
+            return
+        if not self.driver.wifi_ssid or not self.driver.wifi_psw:
+            persistent_notification.async_create(
+                self.hass, "WLAN-SSID oder WLAN-Passwort fehlt.", self.model
+            )
+            return
+        if not await self._ble_connect():
+            persistent_notification.async_create(
+                self.hass, "Das Gerät ist per Bluetooth nicht erreichbar.", self.model
+            )
+            return
+
+        # Zendure erwartet den Broker als iotUrl. Für den Standardport 1883
+        # wird wie in master nur der Host gesendet.
+        broker = self.driver.mqtt_host
+        if self.driver.mqtt_port != 1883:
+            broker = f"{broker}:{self.driver.mqtt_port}"
+
+        if not await self._ble_command({
+            "iotUrl": broker,
+            "messageId": 1002,
+            "method": "token",
+            "password": self.driver.wifi_psw,
+            "ssid": self.driver.wifi_ssid,
+            "timeZone": "GMT+01:00",
+            "token": "abcdefgh",
+        }):
+            return
+        if not await self._ble_command({"messageId": 1003, "method": "station"}):
+            return
+
+        persistent_notification.async_create(
+            self.hass,
+            "Der lokale MQTT-Server wurde an das Gerät gesendet.",
+            self.model,
+        )
+
     def _ble_on_notify(self, sender, data: bytearray) -> None:
         try:
             response = json.loads(data.decode())
