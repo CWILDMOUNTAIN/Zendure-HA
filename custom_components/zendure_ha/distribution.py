@@ -280,12 +280,23 @@ class Distribution(EntityDevice):
 
         if mode == DistributionMode.BYPASS_SOLAR:
             for d in self.devices:
+                # Geschützte Geräte individuell notladen statt Solar-Bypass anzufordern.
+                if d.low_voltage_protect:
+                    d._solar_bypass_mode = False
+                    if d.state <= DeviceState.EXTERNAL:
+                        continue
+                    recovery = -max(200, abs(d.power_profile[1].power) // 4)
+                    d.power(recovery)
+                    continue
+
                 if d.state <= DeviceState.EXTERNAL:
                     continue
+
                 d._solar_bypass_mode = True
                 if d.solar <= 0:
                     d.power(0)
                     continue
+
                 target = min(int(d.solar), abs(d.power_profile[False].power))
                 d.power(target)
             return
@@ -307,20 +318,22 @@ class Distribution(EntityDevice):
         self.p1_time = now
 
         protected = [d for d in self.devices if d.low_voltage_protect]
-        if protected:
-            self.low_voltage_recovery_active = True
-            recovery = -max(200, max(abs(d.power_profile[1].power) for d in protected) // 4)
-            self.setpoint = recovery
-            self.setpoint_avg += (abs(self.setpoint) - self.setpoint_avg) * elapsed / 900
-            self.update_power(True, self.setpoint, elapsed)
-            return
+        self.low_voltage_recovery_active = bool(protected)
+        self.setpoint = self.update_setpoint(mode, p1 + power_actual + int(self.setpoint_correction), self.solar, now, elapsed)
+        # Während mindestens ein Gerät Notladung benötigt, darf die normale
+        # Flottenregelung die übrigen Geräte nicht entladen.
+        #if protected:
+        #    self.setpoint = min(0, self.setpoint)
+
+        self.setpoint_avg += (abs(self.setpoint) - self.setpoint_avg) * elapsed / 900
+        self.update_power(self.setpoint < 0, self.setpoint, elapsed)
+
+        # Notladung pro Gerät, unabhängig von Reihenfolge und Phase.
+        for d in protected:
+            recovery = -max(200, abs(d.power_profile[1].power) // 4)
+            d.power(recovery)
 
         self.low_voltage_recovery_active = False
-
-        # the demand is what the meter shows plus what the fleet delivers; the setpoint follows from mode, stabilizer and direction
-        self.setpoint = self.update_setpoint(mode, p1 + power_actual + int(self.setpoint_correction), self.solar, now, elapsed)
-        self.setpoint_avg += (abs(self.setpoint) - self.setpoint_avg) * elapsed / 900  # ~15-min EMA of the demand
-        self.update_power(self.setpoint < 0, self.setpoint, elapsed)
 
     def update_telemetry(self, p1: int) -> int:
         """What the fleet does now: the sum, the setpoint per phase in self.sp, the live sensors; returns power_actual."""
@@ -352,8 +365,6 @@ class Distribution(EntityDevice):
 
     def update_setpoint(self, mode: DistributionMode, setpoint: int, solar: int, now: float, elapsed: float) -> int:
         """The fleet setpoint: manual is the knob, the other modes clamp and cap; idle and a pending reversal hold the fleet at 0."""
-        if self.low_voltage_recovery_active:
-            return -max(200, abs(min(d.power_profile[1].power for d in self.devices if d.low_voltage_protect)) // 4)
 
         if mode == DistributionMode.MANUAL:
             setpoint = int(self.manual_power)
@@ -435,10 +446,7 @@ class Distribution(EntityDevice):
     def distribute_power(self, setpoint: int, order: list[DistributionDevice]) -> None:
         """The setpoint over the devices that already run this way, weighted by rated power and the room in the pack; a standing one starts at RANGE_MIN when the running ones would pass twice their optimal band."""
         if self.low_voltage_recovery_active:
-            for d in order:
-                if d.low_voltage_protect:
-                    d.power(-max(200, abs(d.power_profile[1].power) // 4))
-            return
+            order = [d for d in order if not d.low_voltage_protect]
 
         charging = setpoint < 0
         sign = -1 if charging else 1
@@ -492,6 +500,8 @@ class Distribution(EntityDevice):
                 break
             if d.soc_limit == (1 if charging else 2):
                 continue
+            if not charging and d.low_voltage_discharge_protect:
+                continue
             d.power(sign * RANGE_MIN)
             excess -= 2 * (abs(d.power_profile[charging].power) // 4)
             self.pwr_low = 0
@@ -510,7 +520,7 @@ class Distribution(EntityDevice):
                 # the device's own verdict overrules the percentage
                 if d.soc_limit == (1 if charging else 2):
                     continue
-                if d.low_voltage_discharge_protect:
+                if not charging and d.low_voltage_discharge_protect:
                     continue
                 if d.state <= DeviceState.EXTERNAL or not d.kwh or ((d.bypass or d.soc >= d.soc_max) if charging else (d.soc <= d.soc_min)):
                     continue
@@ -531,7 +541,7 @@ class Distribution(EntityDevice):
             self.profile[charging].order = order
             self.profile[charging].phases = [[d for d in order if (d.power_phase or Phase.all) == phase] for phase in (0, 1, 2, 3)]
         for d in self.devices:
-            if d.power_setpoint and d.kwh and d not in self.profile[self.charging].order:
+            if d.power_setpoint and d.kwh and not d.low_voltage_protect and d not in self.profile[self.charging].order:
                 d.power(0)
 
     def read_jumps(self, entity_ids: list[str]) -> dict[str, list[tuple[float, float]]]:
