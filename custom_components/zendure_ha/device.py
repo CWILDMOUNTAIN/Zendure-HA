@@ -103,12 +103,12 @@ class DistributionDevice(EntityDevice):
         self.wear = 0.0  # equivalent full cycles over the wear window, set by the distribution
         self.low_voltage = 0.0
         self.low_voltage_protect = False
-        self.low_voltage_warn = 3.0  # warning threshold, V per cell
-        self.low_voltage_resume = 3.2  # hysteresis resume threshold, V per cell
+        self.low_voltage_warn = 2.95  # warning threshold, V per cell
+        self.low_voltage_resume = 3.25  # hysteresis resume threshold, V per cell
         self.low_voltage_protect_since = 0.0
         self.low_voltage_discharge_protect = False
-        self.low_voltage_discharge_warn = 3.1
-        self.low_voltage_discharge_resume = 3.3
+        self.low_voltage_discharge_warn = 3.05
+        self.low_voltage_discharge_resume = 3.25
 
         # power settings
         self.power_profile = profiles
