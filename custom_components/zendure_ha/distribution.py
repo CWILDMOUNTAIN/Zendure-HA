@@ -53,7 +53,6 @@ class DistributionMode(Enum):
     SMART_DISCHARGING = 3
     SMART_CHARGING = 4
     STORE_SOLAR = 5
-    BYPASS_SOLAR = 6
 
 
 DistributionModi = {m.value: m.name.lower() for m in DistributionMode}  # the select options; the lowercase names are the translation keys
@@ -276,34 +275,6 @@ class Distribution(EntityDevice):
             self.hass.async_create_task(self.update_wear())
             self.hass.async_create_task(self.detect_phases())
 
-        mode = DistributionMode(int(self.mode))
-
-        if mode == DistributionMode.BYPASS_SOLAR:
-            for d in self.devices:
-                # Geschützte Geräte individuell notladen statt Solar-Bypass anzufordern.
-                if d.low_voltage_protect:
-                    d._solar_bypass_mode = False
-                    if d.state <= DeviceState.EXTERNAL:
-                        continue
-                    recovery = -max(200, abs(d.power_profile[1].power) // 4)
-                    d.power(recovery)
-                    continue
-
-                if d.state <= DeviceState.EXTERNAL:
-                    continue
-
-                d._solar_bypass_mode = True
-                if d.solar <= 0:
-                    d.power(0)
-                    continue
-
-                target = min(int(d.solar), abs(d.power_profile[False].power))
-                d.power(target)
-            return
-
-        for d in self.devices:
-            d._solar_bypass_mode = False
-
         power_actual = self.update_telemetry(p1)
 
         # rebuild the order every 10 minutes, and right away when a device joins or drops out
@@ -371,8 +342,6 @@ class Distribution(EntityDevice):
         else:
             if mode == DistributionMode.SMART_DISCHARGING:
                 setpoint = max(setpoint, 0)
-            elif mode == DistributionMode.SMART_CHARGING:
-                setpoint = min(setpoint, 0)
             elif mode == DistributionMode.STORE_SOLAR:
                 setpoint = min(setpoint, 0) if solar > 0 else 0
 
@@ -449,8 +418,57 @@ class Distribution(EntityDevice):
             order = [d for d in order if not d.low_voltage_protect]
 
         charging = setpoint < 0
+        smart_charging = int(self.mode) == DistributionMode.SMART_CHARGING.value
         sign = -1 if charging else 1
         demand = abs(setpoint)
+
+        # Positive Abgabe in SMART_CHARGING pro Gerät auf dessen PV begrenzen.
+        if smart_charging and not charging:
+            candidates = [d for d in order if d.state > DeviceState.EXTERNAL]
+
+            running = sorted(
+                (d for d in candidates if d.power_actual > 0 or d.power_setpoint > 0),
+                key=lambda d: d.solar,
+                reverse=True,
+            )
+            standing = sorted(
+                (d for d in candidates if d not in running),
+                key=lambda d: d.solar,
+                reverse=True,
+            )
+
+            remaining = demand
+            targets: dict[DistributionDevice, int] = {d: 0 for d in candidates}
+
+            # Erst laufende Geräte, dann stehende; jeweils höchstens eigene PV
+            # und die maximale Entladeleistung des Geräts zuweisen.
+            for devices, is_running in ((running, True), (standing, False)):
+                for d in devices:
+                    solar_cap = max(0, int(d.solar))
+                    rated_cap = max(0, int(d.power_profile[False].power))
+                    target = min(remaining, solar_cap, rated_cap)
+
+                    # Ein stehendes Gerät nicht unterhalb der Mindestleistung starten.
+                    if not is_running and 0 < target < RANGE_MIN:
+                        continue
+
+                    targets[d] = target
+                    remaining -= target
+                    if remaining <= 0:
+                        break
+
+                if remaining <= 0:
+                    break
+
+            for d in candidates:
+                target = targets[d]
+                if (
+                    target != d.power_setpoint
+                    or abs(d.power_actual - target) >= 10
+                ):
+                    d.power(target)
+
+            return
 
         # one pass: who runs this way, with the sums the shares need, and who stands; a device running the other way stops
         running: list[DistributionDevice] = []
