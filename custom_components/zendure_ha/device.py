@@ -56,9 +56,9 @@ class ProfileDischarge(PowerProfile):
     """Discharge direction profile."""
 
     def available_power(self, device: DistributionDevice) -> int:
-        if device.low_voltage_discharge_protect and not getattr(device, "_solar_bypass_mode", False):  # no discharge below 3.1 V
+        if device.low_voltage_discharge_protect:  # no discharge below 3.1 V
             return 0
-        if device.soc_limit == 2 and not getattr(device, "_solar_bypass_mode", False):  # the device's own verdict: empty
+        if device.soc_limit == 2:  # the device's own verdict: empty
             return 0
         # thermal derating: at 55 °C or more, delivering 25 W or more under its setpoint for 25 s, the device is asked no more than it proves to manage plus 15 W
         if device.temp >= 55 and device.power_setpoint - device.power_actual > 25 and time.time() - device.power_since > 25:
@@ -107,7 +107,7 @@ class DistributionDevice(EntityDevice):
         self.low_voltage_resume = 3.25  # hysteresis resume threshold, V per cell
         self.low_voltage_protect_since = 0.0
         self.low_voltage_discharge_protect = False
-        self.low_voltage_discharge_warn = 3
+        self.low_voltage_discharge_warn = 3.0
         self.low_voltage_discharge_resume = 3.25
 
         # power settings
