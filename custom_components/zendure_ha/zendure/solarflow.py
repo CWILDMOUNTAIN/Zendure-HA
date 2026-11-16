@@ -23,6 +23,7 @@ from ..select import HaSelect
 from ..sensor import HaSensor
 from ..switch import HaSwitch
 from ..button import HaButton
+from ..distribution import DistributionMode
 from .battery import ZendureBattery
 from .device import Command, ConnectionType, ZendureDevice, centi_convert, temp_convert
 
@@ -211,8 +212,13 @@ class ZendureSolarFlow(ZendureDevice, DistributionDevice):
 
         watts = max(self.power_profile[1].power, min(self.power_profile[0].power, watts))  # clamp to rated power, both directions
 
-        # outputPower is an absolute target and the pass-through is already flowing, so ask for it on top or the command sits below it
-        if self.bypass and watts > 0:
+        # In SMART_CHARGING, watts is already the complete device output limit.
+        # Other modes add pass-through solar because their target is additional power.
+        smart_charging = (
+            self.driver is not None
+            and int(self.driver.distribution.mode) == DistributionMode.SMART_CHARGING.value
+        )
+        if self.bypass and watts > 0 and not smart_charging:
             watts = min(self.power_profile[0].power, watts + self.solar)
 
         # the device is busy with its last command: over ZenSDK until the report echoes the limits (REPORT_WAIT_S at most), over the broker HOLD_S
