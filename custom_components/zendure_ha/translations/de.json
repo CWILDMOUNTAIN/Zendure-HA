@@ -133,14 +133,16 @@
             "device_id": "Geräteschlüssel",
             "sn": "Seriennummer",
             "ip": "IP-Adresse",
-            "blemac": "Bluetooth-Adresse"
+            "blemac": "Bluetooth-Adresse",
+            "allow_control": "Steuerung erlauben"
           },
           "data_description": {
             "prodkey": "Der productKey, den die Zendure-Cloud für das Gerät meldet.",
             "device_id": "Der deviceKey, den die Zendure-Cloud für das Gerät meldet.",
             "sn": "Die Seriennummer auf dem Typenschild.",
             "ip": "Feste Adresse für die lokale API; wird automatisch gelernt, wenn leer.",
-            "blemac": "Wird automatisch aus der Bluetooth-Ankündigung gelernt, wenn leer."
+            "blemac": "Wird automatisch aus der Bluetooth-Ankündigung gelernt, wenn leer.",
+            "allow_control": "Aus: das Gerät meldet nur und bleibt außerhalb der Flotte."
           }
         },
         "reconfigure": {
@@ -216,8 +218,7 @@
           "smart": "Intelligente Anpassung",
           "smart_discharging": "Nur intelligent entladen",
           "smart_charging": "Nur intelligent laden",
-          "store_solar": "Solar speichern",
-          "bypass_solar": "Solar Bypass"
+          "store_solar": "Solar speichern"
         }
       },
       "auto_heat": {
@@ -309,6 +310,9 @@
       },
       "hems_state": {
         "name": "HEMS aktiv"
+      },
+      "grid_state": {
+        "name": "Netz"
       },
       "ct_off": {
         "name": "CT getrennt"
