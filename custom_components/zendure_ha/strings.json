@@ -133,14 +133,16 @@
             "device_id": "Device key",
             "sn": "Serial number",
             "ip": "IP address",
-            "blemac": "Bluetooth address"
+            "blemac": "Bluetooth address",
+            "allow_control": "Allow control"
           },
           "data_description": {
             "prodkey": "The productKey the Zendure cloud reports for the device.",
             "device_id": "The deviceKey the Zendure cloud reports for the device.",
             "sn": "The serial number on the device label.",
             "ip": "Fixed address for the local API; learned automatically when empty.",
-            "blemac": "Learned automatically from the Bluetooth advertisement when empty."
+            "blemac": "Learned automatically from the Bluetooth advertisement when empty.",
+            "allow_control": "Off: the device only reports and stays out of the fleet."
           }
         },
         "reconfigure": {
@@ -308,6 +310,9 @@
       },
       "hems_state": {
         "name": "HEMS active"
+      },
+      "grid_state": {
+        "name": "Grid"
       },
       "ct_off": {
         "name": "CT disconnected"
