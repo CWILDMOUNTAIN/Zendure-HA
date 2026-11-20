@@ -221,13 +221,9 @@ class ZendureSolarFlow(ZendureDevice, DistributionDevice):
             return self.power_actual
 
         watts = max(self.power_profile[1].power, min(self.power_profile[0].power, watts))  # clamp to rated power, both directions
-
-        # In SMART_CHARGING, watts is already the complete device output limit.
-        # Other modes add pass-through solar because their target is additional power.
-        smart_charging = (
-            self.driver is not None
-            and int(self.driver.distribution.mode) == DistributionMode.SMART_CHARGING.value
-        )
+        # in SMART_CHARGING, watts is already the complete device output limit
+        # other modes add pass-through solar because their target is additional power.
+        smart_charging = (self.driver is not None and int(self.driver.distribution.mode) == DistributionMode.SMART_CHARGING.value)
         if self.bypass and watts > 0 and not smart_charging:
             watts = min(self.power_profile[0].power, watts + self.solar)
 
@@ -239,8 +235,8 @@ class ZendureSolarFlow(ZendureDevice, DistributionDevice):
         elif since < HOLD_S:
             return self.power_actual
 
-        # no new command while both the measured power and the last setpoint sit within 3 W of the new target
-        if abs(self.power_actual - watts) < 10 and abs(self.power_setpoint - watts) < 10:
+        # no new command while both the measured power and the last setpoint sit within of the new target
+        if not smart_charging and abs(self.power_actual - watts) < 10 and abs(self.power_setpoint - watts) < 10:
             return self.power_actual
         if self.power_setpoint != watts:
             self.power_since = time.time()
