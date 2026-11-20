@@ -133,14 +133,16 @@
             "device_id": "Apparaatsleutel",
             "sn": "Serienummer",
             "ip": "IP-adres",
-            "blemac": "Bluetooth-adres"
+            "blemac": "Bluetooth-adres",
+            "allow_control": "Aansturen toestaan"
           },
           "data_description": {
             "prodkey": "De productKey die de Zendure-cloud voor het apparaat meldt.",
             "device_id": "De deviceKey die de Zendure-cloud voor het apparaat meldt.",
             "sn": "Het serienummer op het typeplaatje.",
             "ip": "Vast adres voor de lokale API; wordt automatisch geleerd als het leeg is.",
-            "blemac": "Wordt automatisch uit de Bluetooth-advertentie geleerd als het leeg is."
+            "blemac": "Wordt automatisch uit de Bluetooth-advertentie geleerd als het leeg is.",
+            "allow_control": "Uit: het apparaat rapporteert alleen en blijft buiten de vloot."
           }
         },
         "reconfigure": {
@@ -216,8 +218,7 @@
           "smart": "Slim afstemmen",
           "smart_discharging": "Alleen slim ontladen",
           "smart_charging": "Alleen slim laden",
-          "store_solar": "Zon opslaan", 
-          "bypass_solar": "Zon bypass"
+          "store_solar": "Zon opslaan"
         }
       },
       "auto_heat": {
@@ -309,6 +310,9 @@
       },
       "hems_state": {
         "name": "HEMS actief"
+      },
+      "grid_state": {
+        "name": "Net"
       },
       "ct_off": {
         "name": "CT losgekoppeld"
